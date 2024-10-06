@@ -14,6 +14,32 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { diskStorage } from 'multer';
+import { MulterField } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
+
+const ERROR_MESSAGE =
+  'Invalid file type. Only video/mp4 and image/jpeg are supported.';
+
+const filesToIntercept: MulterField[] = [
+  { name: 'video', maxCount: 1 },
+  { name: 'thumbnail', maxCount: 1 },
+];
+
+const fileFilter = (_req, file, cb) => {
+  if (file.mimetype !== 'video/mp4' && file.mimetype !== 'image/jpeg') {
+    return cb(new BadRequestException(ERROR_MESSAGE), false);
+  }
+  return cb(null, true);
+};
+
+const storage = diskStorage({
+  destination: '.uploads',
+  filename: (_req, file, cb) => {
+    return cb(
+      null,
+      `${Date.now()}-${randomUUID()}${extname(file.originalname)}`,
+    );
+  },
+});
 
 @Controller()
 export class AppController {
@@ -27,35 +53,11 @@ export class AppController {
   @Post('video')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FileFieldsInterceptor(
-      [
-        { name: 'video', maxCount: 1 },
-        { name: 'thumbnail', maxCount: 1 },
-      ],
-      {
-        dest: './uploads',
-        storage: diskStorage({
-          destination: '.uploads',
-          filename: (_req, file, cb) => {
-            return cb(
-              null,
-              `${Date.now()}-${randomUUID()}${extname(file.originalname)}`,
-            );
-          },
-        }),
-        fileFilter: (_req, file, cb) => {
-          if (file.mimetype !== 'video/mp4' && file.mimetype !== 'image/jpeg') {
-            return cb(
-              new BadRequestException(
-                'Invalid file type. Only video/mp4 and image/jpeg are supported.',
-              ),
-              false,
-            );
-          }
-          return cb(null, true);
-        },
-      },
-    ),
+    FileFieldsInterceptor(filesToIntercept, {
+      dest: './uploads',
+      storage,
+      fileFilter,
+    }),
   )
   async uploadVideo(
     @Req() _req: Request,
